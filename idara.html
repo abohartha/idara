@@ -2,13 +2,21 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ادارة</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>إدارة</title>
+<meta name="description" content="تطبيق إدارة لتحويل النص إلى Excel مع الإحداثيات">
+<meta name="theme-color" content="#0d9488">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="إدارة">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
   --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
-  --brand:#0d9488; --brand2:#0f766e; --accent:#4f46e5; --danger:#e11d48;
+  --brand:#0d9488; --brand2:#0f766e; --accent:#4f46e5;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -19,6 +27,7 @@ body{
     radial-gradient(1200px 400px at 100% -10%, #d9f2ee 0%, transparent 60%),
     radial-gradient(900px 350px at -10% 0%, #e0e7ff 0%, transparent 55%);
   background-repeat:no-repeat;
+  padding-top:env(safe-area-inset-top);
 }
 .wrap{max-width:1060px;margin:0 auto;padding:0 16px}
 header.app-header{
@@ -85,14 +94,18 @@ td.actions{width:1%;white-space:nowrap}
   opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 .empty{padding:26px;text-align:center;color:var(--muted);font-size:.9rem}
+@media (max-width:520px){
+  .btn{padding:9px 12px;font-size:.85rem}
+  header.app-header{padding:20px 0 26px}
+}
 </style>
 </head>
 <body>
 
 <header class="app-header">
   <div class="wrap">
-    <h1>📋 ادارة</h1>
-    <p>تطبيق لتحويل النص إلى Excel مع الإحداثيات — مع الحفظ والمشاركة.</p>
+    <h1>📋 إدارة</h1>
+    <p>تحويل النص إلى Excel مع الإحداثيات — حفظ ومشاركة.</p>
   </div>
 </header>
 
@@ -181,6 +194,31 @@ let coords = [];
 let curPos = null;
 let coordsOn = true, linksOn = true;
 
+/* حفظ تلقائي */
+const LS_KEY = 'idara_state_v1';
+function saveState(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      cols, data, coords, fname: $('#fname').value, sname: $('#sname').value,
+      coordsOn, linksOn, src: $('#src').value
+    }));
+  }catch(e){}
+}
+function loadState(){
+  try{
+    const s = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if(!s) return;
+    cols = s.cols || []; data = s.data || []; coords = s.coords || [];
+    coordsOn = s.coordsOn !== false; linksOn = s.linksOn !== false;
+    if(s.fname) $('#fname').value = s.fname;
+    if(s.sname) $('#sname').value = s.sname;
+    if(s.src)   $('#src').value   = s.src;
+    $('#coordsOn').checked = coordsOn;
+    $('#linksOn').checked  = linksOn;
+  }catch(e){}
+}
+window.addEventListener('beforeunload', saveState);
+
 function splitLine(line, d){
   const out = []; let cur = '', q = false;
   for(let i=0;i<line.length;i++){
@@ -235,6 +273,320 @@ function doParse(){
   } else {
     cols = Array.from({length: width}, (_, i) => 'عمود ' + (i + 1));
     data = rows.map(pad);
+  }
+
+  coords = data.map(() => ({lat:'', lng:''}));
+  render();
+  saveState();
+  toast(`تم إنشاء الجدول: ${data.length} صف × ${cols.length} عمود`);
+}
+
+function render(){
+  const table = $('#tbl');
+  table.innerHTML = '';
+
+  if(!cols.length){
+    table.innerHTML = '<tbody><tr><td><div class="empty">لا توجد بيانات بعد — اكتب نصًا ثم اضغط «تحويل إلى جدول».</div></td></tr></tbody>';
+    $('#stat').textContent = '';
+    return;
+  }
+
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+
+  cols.forEach((c, i) => {
+    const th = document.createElement('th');
+    const inp = document.createElement('input');
+    inp.value = c;
+    inp.oninput = () => { cols[i] = inp.value; saveState(); };
+    th.appendChild(inp);
+    trh.appendChild(th);
+  });
+
+  if(coordsOn){
+    ['خط العرض','خط الطول'].forEach(t => {
+      const th = document.createElement('th');
+      th.className = 'coord-h'; th.textContent = t;
+      trh.appendChild(th);
+    });
+    if(linksOn){
+      const th = document.createElement('th');
+      th.className = 'coord-h'; th.textContent = 'الرابط';
+      trh.appendChild(th);
+    }
+  }
+  trh.appendChild(document.createElement('th'));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  data.forEach((row, i) => {
+    const tr = document.createElement('tr');
+
+    cols.forEach((_, j) => {
+      const td = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.value = row[j] ?? '';
+      inp.oninput = () => { data[i][j] = inp.value; saveState(); };
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+
+    if(coordsOn){
+      const c = coords[i] || (coords[i] = {lat:'', lng:''});
+
+      const tdLat = document.createElement('td');
+      tdLat.className = 'coord-c';
+      const iLat = document.createElement('input');
+      iLat.dir = 'ltr'; iLat.placeholder = 'lat'; iLat.inputMode = 'decimal';
+      iLat.value = c.lat ?? '';
+      iLat.oninput = () => { c.lat = iLat.value.trim(); updateLink(tr, i); saveState(); };
+      tdLat.appendChild(iLat); tr.appendChild(tdLat);
+
+      const tdLng = document.createElement('td');
+      tdLng.className = 'coord-c';
+      const iLng = document.createElement('input');
+      iLng.dir = 'ltr'; iLng.placeholder = 'lng'; iLng.inputMode = 'decimal';
+      iLng.value = c.lng ?? '';
+      iLng.oninput = () => { c.lng = iLng.value.trim(); updateLink(tr, i); saveState(); };
+      tdLng.appendChild(iLng); tr.appendChild(tdLng);
+
+      if(linksOn){
+        const tdL = document.createElement('td');
+        tdL.className = 'linkcell';
+        tr.appendChild(tdL);
+      }
+    }
+
+    const tdA = document.createElement('td');
+    tdA.className = 'actions';
+    const wrap = document.createElement('div');
+    wrap.className = 'act-wrap';
+
+    const bLoc = document.createElement('button');
+    bLoc.className = 'btn mini'; bLoc.textContent = '📍'; bLoc.title = 'تحديد موقع هذا الصف';
+    bLoc.onclick = async () => {
+      try{
+        toast('جارٍ تحديد الموقع...');
+        const p = await getPos();
+        coords[i] = {lat: p.lat, lng: p.lng};
+        render(); saveState(); toast('تم إضافة الإحداثيات للصف ' + (i + 1));
+      }catch(e){ toast('تعذّر تحديد الموقع: ' + errMsg(e)); }
+    };
+
+    const bDel = document.createElement('button');
+    bDel.className = 'btn mini del'; bDel.textContent = '🗑'; bDel.title = 'حذف الصف';
+    bDel.onclick = () => {
+      data.splice(i, 1); coords.splice(i, 1);
+      render(); saveState(); toast('تم حذف الصف');
+    };
+
+    wrap.append(bLoc, bDel);
+    tdA.appendChild(wrap);
+    tr.appendChild(tdA);
+
+    tbody.appendChild(tr);
+    if(linksOn) updateLink(tr, i);
+  });
+
+  table.appendChild(tbody);
+
+  const filled = coords.filter(c => c && c.lat !== '' && c.lng !== '').length;
+  $('#stat').textContent = `${data.length} صف · ${cols.length} عمود · ${filled} إحداثية`;
+}
+
+function updateLink(tr, i){
+  const cell = tr.querySelector('.linkcell');
+  if(!cell) return;
+  const c = coords[i] || {};
+  const ok = c.lat !== '' && c.lng !== '' && c.lat != null && c.lng != null &&
+             !isNaN(Number(c.lat)) && !isNaN(Number(c.lng));
+  cell.innerHTML = ok
+    ? `<a href="https://maps.google.com/?q=${c.lat},${c.lng}" target="_blank" rel="noopener">فتح</a>`
+    : '<span class="muted">—</span>';
+}
+
+function getPos(){
+  return new Promise((res, rej) => {
+    if(!navigator.geolocation) return rej(new Error('الجهاز لا يدعم تحديد الموقع'));
+    navigator.geolocation.getCurrentPosition(
+      p => res({
+        lat: Number(p.coords.latitude.toFixed(6)),
+        lng: Number(p.coords.longitude.toFixed(6))
+      }),
+      e => rej(e),
+      {enableHighAccuracy:true, timeout:15000, maximumAge:0}
+    );
+  });
+}
+function errMsg(e){
+  if(e && e.code === 1) return 'تم رفض الإذن';
+  if(e && e.code === 2) return 'الموقع غير متاح';
+  if(e && e.code === 3) return 'انتهت المهلة';
+  return (e && e.message) || 'خطأ غير معروف';
+}
+
+function numOrStr(v){
+  const s = String(v ?? '').trim();
+  return (s !== '' && !isNaN(Number(s))) ? Number(s) : s;
+}
+
+function getExportAOA(){
+  const head = cols.slice();
+  if(coordsOn){
+    head.push('خط العرض', 'خط الطول');
+    if(linksOn) head.push('رابط الخريطة');
+  }
+
+  const body = data.map((r, i) => {
+    const row = [];
+    for(let j = 0; j < cols.length; j++) row.push(r[j] ?? '');
+    if(coordsOn){
+      const c = coords[i] || {};
+      const hasLat = c.lat !== '' && c.lat != null;
+      const hasLng = c.lng !== '' && c.lng != null;
+      row.push(hasLat ? numOrStr(c.lat) : '', hasLng ? numOrStr(c.lng) : '');
+      if(linksOn){
+        row.push((hasLat && hasLng) ? `https://maps.google.com/?q=${c.lat},${c.lng}` : '');
+      }
+    }
+    return row;
+  });
+
+  return [head, ...body];
+}
+
+function toCSV(aoa){
+  return aoa.map(r => r.map(c => {
+    const s = c == null ? '' : String(c);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\r\n');
+}
+
+async function buildFile(){
+  const aoa  = getExportAOA();
+  const base = ($('#fname').value || 'بيانات').trim().replace(/[\\/:*?"<>|]/g, '_');
+  const fmt  = $('#fmt').value;
+
+  if(fmt === 'csv' || typeof XLSX === 'undefined'){
+    const blob = new Blob(['\uFEFF' + toCSV(aoa)], {type:'text/csv;charset=utf-8'});
+    return {blob, name: base + '.csv'};
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = aoa[0].map((_, i) => ({
+    wch: Math.min(42, Math.max(12, ...aoa.map(r => String(r[i] ?? '').length + 4)))
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, ($('#sname').value || 'Sheet1').slice(0, 31));
+  const out  = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  return {blob, name: base + '.xlsx'};
+}
+
+function download(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+
+$('#btnParse').onclick = doParse;
+
+$('#btnSample').onclick = () => {
+  $('#src').value =
+`الاسم,المدينة,الملاحظة
+أحمد علي,دمشق,زيارة عميل
+سارة محمد,حلب,تسليم طلب
+خالد يوسف,حمص,متابعة عقد
+ليلى حسن,اللاذقية,اجتماع`;
+  doParse();
+};
+
+$('#btnClear').onclick = () => {
+  if(!confirm('هل تريد مسح كل البيانات؟')) return;
+  $('#src').value = '';
+  cols = []; data = []; coords = []; curPos = null;
+  $('#curCoords').textContent = 'لا يوجد موقع محدد';
+  try{ localStorage.removeItem(LS_KEY); }catch(e){}
+  render();
+};
+
+$('#btnAddRow').onclick = () => {
+  if(!cols.length){ toast('أنشئ الجدول أولًا'); return; }
+  data.push(new Array(cols.length).fill(''));
+  coords.push({lat:'', lng:''});
+  render(); saveState();
+};
+
+$('#coordsOn').onchange = e => { coordsOn = e.target.checked; render(); saveState(); };
+$('#linksOn').onchange  = e => { linksOn  = e.target.checked; render(); saveState(); };
+
+$('#btnLoc').onclick = async () => {
+  try{
+    toast('جارٍ تحديد موقعك...');
+    curPos = await getPos();
+    $('#curCoords').textContent = `${curPos.lat}, ${curPos.lng}`;
+    toast('تم تحديد الموقع ✅');
+  }catch(e){ toast('تعذّر تحديد الموقع: ' + errMsg(e)); }
+};
+
+$('#btnApplyAll').onclick = () => {
+  if(!curPos){ toast('حدّد موقعك أولًا 📍'); return; }
+  if(!data.length){ toast('لا يوجد صفوف'); return; }
+  coords = data.map(() => ({lat: curPos.lat, lng: curPos.lng}));
+  render(); saveState();
+  toast(`تم تطبيق الإحداثيات على ${data.length} صف`);
+};
+
+$('#btnClearCoords').onclick = () => {
+  coords = data.map(() => ({lat:'', lng:''}));
+  render(); saveState(); toast('تم مسح الإحداثيات');
+};
+
+$('#btnSave').onclick = async () => {
+  if(!data.length){ toast('لا توجد بيانات للحفظ'); return; }
+  try{
+    const {blob, name} = await buildFile();
+    download(blob, name);
+    toast('تم حفظ الملف: ' + name);
+  }catch(e){ toast('خطأ في الحفظ: ' + e.message); }
+};
+
+$('#btnShare').onclick = async () => {
+  if(!data.length){ toast('لا توجد بيانات للمشاركة'); return; }
+  try{
+    const {blob, name} = await buildFile();
+    const file = new File([blob], name, {type: blob.type || 'application/octet-stream'});
+
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title: name, text: 'ملف البيانات مع الإحداثيات'});
+      toast('تمت المشاركة ✅');
+    } else {
+      download(blob, name);
+      toast('المشاركة المباشرة غير مدعومة — تم تنزيل الملف بدلًا منها');
+    }
+  }catch(e){
+    if(e && e.name === 'AbortError') return;
+    toast('تعذّرت المشاركة: ' + e.message);
+  }
+};
+
+/* تسجيل Service Worker */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+
+/* بدء */
+loadState();
+render();
+</script>
+</body>
+</html>ata = rows.map(pad);
   }
 
   coords = data.map(() => ({lat:'', lng:''}));
