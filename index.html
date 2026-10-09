@@ -11,7 +11,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="إدارة">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mgrs@2.2.0/dist/mgrs.min.js"></script>
 <style>
 :root{
   --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
@@ -66,7 +65,8 @@ select:focus,input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(13,
 .btn.mini.del:hover{background:#ffe4e6;border-color:#fecdd3}
 .locbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#f0fdfa;
   border:1px dashed #99f6e4;border-radius:14px;padding:10px;margin-bottom:12px}
-.locbar input[type=text]{max-width:260px}
+.locbar.manual{background:#eef2ff;border-color:#c7d2fe}
+.locbar.manual input{max-width:150px;direction:ltr;text-align:left}
 .coords-pill{background:#fff;border:1px solid #ccfbf1;border-radius:999px;
   padding:6px 12px;font-size:.82rem;color:var(--brand2);direction:ltr;font-weight:600}
 .table-wrap{overflow:auto;max-height:56vh;border:1px solid var(--line);border-radius:14px}
@@ -134,17 +134,25 @@ td.actions{width:1%;white-space:nowrap}
 
   <section class="card">
     <h2>2) الجدول والإحداثيات</h2>
+
+    <!-- إدخال يدوي للإحداثيات -->
+    <div class="locbar manual">
+      <span style="font-weight:600;color:#4338ca">✍️ إدخال يدوي:</span>
+      <input type="text" id="manualLat" placeholder="خط العرض" inputmode="decimal">
+      <input type="text" id="manualLng" placeholder="خط الطول" inputmode="decimal">
+      <button class="btn ghost" id="btnManualSet">تعيين للموقع الحالي</button>
+      <button class="btn ghost" id="btnManualAll">تطبيق على كل الصفوف</button>
+      <a class="btn ghost" id="btnManualMap" href="#" target="_blank" rel="noopener">🗺 فتح الخريطة</a>
+    </div>
+
+    <!-- تحديد الموقع التلقائي -->
     <div class="locbar">
-      <button class="btn accent" id="btnLoc">📍 تحديد موقعي الحالي</button>
+      <button class="btn accent" id="btnLoc">📍 تحديد موقعي الحالي (GPS)</button>
       <button class="btn ghost" id="btnApplyAll">تطبيق على كل الصفوف</button>
       <button class="btn ghost" id="btnClearCoords">مسح الإحداثيات</button>
       <span class="coords-pill" id="curCoords">لا يوجد موقع محدد</span>
     </div>
-    <div class="locbar">
-      <input type="text" id="mgrsInput" placeholder="مثال: 33XVG74594359" style="direction:ltr">
-      <button class="btn ghost" id="btnConvertMgrs">تحويل MGRS</button>
-      <span class="muted" style="font-size:.8rem">أدخل إحداثيات MGRS ثم اضغط تحويل لملء الحقول</span>
-    </div>
+
     <div class="row" style="margin:0 0 10px">
       <label class="chk"><input type="checkbox" id="coordsOn" checked> أعمدة الإحداثيات</label>
       <label class="chk"><input type="checkbox" id="linksOn" checked> رابط خريطة Google</label>
@@ -200,7 +208,7 @@ let curPos = null;
 let coordsOn = true, linksOn = true;
 
 /* حفظ تلقائي */
-const LS_KEY = 'idara_state_v1';
+const LS_KEY = 'idara_state_v2';
 function saveState(){
   try{
     localStorage.setItem(LS_KEY, JSON.stringify({
@@ -435,23 +443,56 @@ function errMsg(e){
   return (e && e.message) || 'خطأ غير معروف';
 }
 
-/* تحويل MGRS إلى Lat/Lng */
-function convertMgrs(){
-  const input = $('#mgrsInput').value.trim();
-  if(!input){ toast('أدخل إحداثيات MGRS أولًا'); return; }
-  try{
-    // mgrs.toPoint returns [lon, lat]
-    const point = mgrs.toPoint(input);
-    if(!point || point.length < 2) throw new Error('صيغة MGRS غير صحيحة');
-    const lng = Number(point[0].toFixed(6));
-    const lat = Number(point[1].toFixed(6));
-    curPos = {lat, lng};
-    $('#curCoords').textContent = `${lat}, ${lng}`;
-    toast('تم التحويل: ' + lat + ', ' + lng);
-  }catch(e){
-    toast('تعذّر تحويل MGRS: ' + (e.message || 'صيغة غير صحيحة'));
+/* قراءة الإدخال اليدوي والتحقق منه */
+function readManual(){
+  const lat = $('#manualLat').value.trim();
+  const lng = $('#manualLng').value.trim();
+  if(lat === '' || lng === ''){ toast('أدخل خط العرض وخط الطول معًا'); return null; }
+  const nLat = Number(lat), nLng = Number(lng);
+  if(isNaN(nLat) || isNaN(nLng)){ toast('القيم يجب أن تكون أرقامًا'); return null; }
+  if(nLat < -90 || nLat > 90){ toast('خط العرض يجب أن يكون بين -90 و 90'); return null; }
+  if(nLng < -180 || nLng > 180){ toast('خط الطول يجب أن يكون بين -180 و 180'); return null; }
+  return {lat: nLat, lng: nLng};
+}
+
+function updateManualMapLink(){
+  const lat = $('#manualLat').value.trim();
+  const lng = $('#manualLng').value.trim();
+  const a = $('#btnManualMap');
+  if(lat !== '' && lng !== '' && !isNaN(Number(lat)) && !isNaN(Number(lng))){
+    a.href = `https://www.google.com/maps?q=${lat},${lng}`;
+    a.style.opacity = '1';
+    a.style.pointerEvents = 'auto';
+  } else {
+    a.href = '#';
+    a.style.opacity = '.55';
+    a.style.pointerEvents = 'none';
   }
 }
+$('#manualLat').addEventListener('input', updateManualMapLink);
+$('#manualLng').addEventListener('input', updateManualMapLink);
+updateManualMapLink();
+
+/* تعيين للموقع الحالي */
+$('#btnManualSet').onclick = () => {
+  const p = readManual();
+  if(!p) return;
+  curPos = p;
+  $('#curCoords').textContent = `${p.lat}, ${p.lng}`;
+  toast('تم تعيين الموقع الحالي يدويًا ✅');
+};
+
+/* تطبيق يدوي على كل الصفوف */
+$('#btnManualAll').onclick = () => {
+  const p = readManual();
+  if(!p) return;
+  if(!data.length){ toast('لا يوجد صفوف'); return; }
+  curPos = p;
+  coords = data.map(() => ({lat: p.lat, lng: p.lng}));
+  $('#curCoords').textContent = `${p.lat}, ${p.lng}`;
+  render(); saveState();
+  toast(`تم تطبيق الإحداثيات على ${data.length} صف`);
+};
 
 function numOrStr(v){
   const s = String(v ?? '').trim();
@@ -558,8 +599,6 @@ $('#btnLoc').onclick = async () => {
     toast('تم تحديد الموقع ✅');
   }catch(e){ toast('تعذّر تحديد الموقع: ' + errMsg(e)); }
 };
-
-$('#btnConvertMgrs').onclick = convertMgrs;
 
 $('#btnApplyAll').onclick = () => {
   if(!curPos){ toast('حدّد موقعك أولًا 📍'); return; }
