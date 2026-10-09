@@ -65,8 +65,6 @@ select:focus,input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(13,
 .btn.mini.del:hover{background:#ffe4e6;border-color:#fecdd3}
 .locbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#f0fdfa;
   border:1px dashed #99f6e4;border-radius:14px;padding:10px;margin-bottom:12px}
-.locbar.manual{background:#eef2ff;border-color:#c7d2fe}
-.locbar.manual input{max-width:150px;direction:ltr;text-align:left}
 .coords-pill{background:#fff;border:1px solid #ccfbf1;border-radius:999px;
   padding:6px 12px;font-size:.82rem;color:var(--brand2);direction:ltr;font-weight:600}
 .table-wrap{overflow:auto;max-height:56vh;border:1px solid var(--line);border-radius:14px}
@@ -134,23 +132,10 @@ td.actions{width:1%;white-space:nowrap}
 
   <section class="card">
     <h2>2) الجدول والإحداثيات</h2>
-
-    <div class="locbar manual">
-      <span style="font-weight:600;color:#4338ca">✍️ إدخال يدوي:</span>
-      <input type="text" id="manualLat" placeholder="خط العرض" inputmode="decimal">
-      <input type="text" id="manualLng" placeholder="خط الطول" inputmode="decimal">
-      <button class="btn ghost" id="btnManualSet">تعيين للموقع الحالي</button>
-      <button class="btn ghost" id="btnManualAll">تطبيق على كل الصفوف</button>
-      <button class="btn ghost" id="btnManualMap">🗺 فتح الخريطة</button>
-    </div>
-
     <div class="locbar">
-      <button class="btn accent" id="btnLoc">📍 تحديد موقعي الحالي (GPS)</button>
-      <button class="btn ghost" id="btnApplyAll">تطبيق على كل الصفوف</button>
       <button class="btn ghost" id="btnClearCoords">مسح الإحداثيات</button>
-      <span class="coords-pill" id="curCoords">لا يوجد موقع محدد</span>
+      <span class="muted" style="font-size:.8rem">💡 أدخل خط العرض وخط الطول يدويًا في كل صف.</span>
     </div>
-
     <div class="row" style="margin:0 0 10px">
       <label class="chk"><input type="checkbox" id="coordsOn" checked> أعمدة الإحداثيات</label>
       <label class="chk"><input type="checkbox" id="linksOn" checked> رابط خريطة Google</label>
@@ -202,10 +187,9 @@ function toast(msg){
 let cols   = [];
 let data   = [];
 let coords = [];
-let curPos = null;
 let coordsOn = true, linksOn = true;
 
-const LS_KEY = 'idara_state_v2';
+const LS_KEY = 'idara_state_v3';
 function saveState(){
   try{
     localStorage.setItem(LS_KEY, JSON.stringify({
@@ -321,7 +305,7 @@ function render(){
     });
     if(linksOn){
       const th = document.createElement('th');
-      th.className = 'coord-h'; th.textContent = 'الرابط';
+      th.className = 'coord-h'; th.textContent = 'الخريطة';
       trh.appendChild(th);
     }
   }
@@ -374,17 +358,6 @@ function render(){
     const wrap = document.createElement('div');
     wrap.className = 'act-wrap';
 
-    const bLoc = document.createElement('button');
-    bLoc.className = 'btn mini'; bLoc.textContent = '📍'; bLoc.title = 'تحديد موقع هذا الصف';
-    bLoc.onclick = async () => {
-      try{
-        toast('جارٍ تحديد الموقع...');
-        const p = await getPos();
-        coords[i] = {lat: p.lat, lng: p.lng};
-        render(); saveState(); toast('تم إضافة الإحداثيات للصف ' + (i + 1));
-      }catch(e){ toast('تعذّر تحديد الموقع: ' + errMsg(e)); }
-    };
-
     const bDel = document.createElement('button');
     bDel.className = 'btn mini del'; bDel.textContent = '🗑'; bDel.title = 'حذف الصف';
     bDel.onclick = () => {
@@ -392,7 +365,7 @@ function render(){
       render(); saveState(); toast('تم حذف الصف');
     };
 
-    wrap.append(bLoc, bDel);
+    wrap.append(bDel);
     tdA.appendChild(wrap);
     tr.appendChild(tdA);
 
@@ -419,70 +392,6 @@ function updateLink(tr, i){
     cell.innerHTML = '<span class="muted">—</span>';
   }
 }
-
-function getPos(){
-  return new Promise((res, rej) => {
-    if(!navigator.geolocation) return rej(new Error('الجهاز لا يدعم تحديد الموقع'));
-    navigator.geolocation.getCurrentPosition(
-      p => res({
-        lat: Number(p.coords.latitude.toFixed(6)),
-        lng: Number(p.coords.longitude.toFixed(6))
-      }),
-      e => rej(e),
-      {enableHighAccuracy:true, timeout:15000, maximumAge:0}
-    );
-  });
-}
-function errMsg(e){
-  if(e && e.code === 1) return 'تم رفض الإذن';
-  if(e && e.code === 2) return 'الموقع غير متاح';
-  if(e && e.code === 3) return 'انتهت المهلة';
-  return (e && e.message) || 'خطأ غير معروف';
-}
-
-/* قراءة الإدخال اليدوي والتحقق منه */
-function readManual(){
-  const lat = $('#manualLat').value.trim();
-  const lng = $('#manualLng').value.trim();
-  if(lat === '' || lng === ''){ toast('أدخل خط العرض وخط الطول معًا'); return null; }
-  const nLat = Number(lat), nLng = Number(lng);
-  if(isNaN(nLat) || isNaN(nLng)){ toast('القيم يجب أن تكون أرقامًا'); return null; }
-  if(nLat < -90 || nLat > 90){ toast('خط العرض يجب أن يكون بين -90 و 90'); return null; }
-  if(nLng < -180 || nLng > 180){ toast('خط الطول يجب أن يكون بين -180 و 180'); return null; }
-  return {lat: nLat, lng: nLng};
-}
-
-$('#btnManualSet').onclick = () => {
-  const p = readManual();
-  if(!p) return;
-  curPos = p;
-  $('#curCoords').textContent = `${p.lat}, ${p.lng}`;
-  toast('تم تعيين الموقع الحالي يدويًا ✅');
-};
-
-$('#btnManualAll').onclick = () => {
-  const p = readManual();
-  if(!p) return;
-  if(!data.length){ toast('لا يوجد صفوف'); return; }
-  curPos = p;
-  coords = data.map(() => ({lat: p.lat, lng: p.lng}));
-  $('#curCoords').textContent = `${p.lat}, ${p.lng}`;
-  render(); saveState();
-  toast(`تم تطبيق الإحداثيات على ${data.length} صف`);
-};
-
-/* فتح خريطة Google من الإحداثيات اليدوية */
-$('#btnManualMap').onclick = () => {
-  const p = readManual();
-  if(!p) return;
-  const url = `https://www.google.com/maps?q=${p.lat},${p.lng}`;
-  const w = window.open(url, '_blank');
-  if(!w || w.closed || typeof w.closed === 'undefined'){
-    location.href = url;
-  } else {
-    toast('تم فتح الخريطة 🗺');
-  }
-};
 
 function numOrStr(v){
   const s = String(v ?? '').trim();
@@ -565,8 +474,7 @@ $('#btnSample').onclick = () => {
 $('#btnClear').onclick = () => {
   if(!confirm('هل تريد مسح كل البيانات؟')) return;
   $('#src').value = '';
-  cols = []; data = []; coords = []; curPos = null;
-  $('#curCoords').textContent = 'لا يوجد موقع محدد';
+  cols = []; data = []; coords = [];
   try{ localStorage.removeItem(LS_KEY); }catch(e){}
   render();
 };
@@ -580,23 +488,6 @@ $('#btnAddRow').onclick = () => {
 
 $('#coordsOn').onchange = e => { coordsOn = e.target.checked; render(); saveState(); };
 $('#linksOn').onchange  = e => { linksOn  = e.target.checked; render(); saveState(); };
-
-$('#btnLoc').onclick = async () => {
-  try{
-    toast('جارٍ تحديد موقعك...');
-    curPos = await getPos();
-    $('#curCoords').textContent = `${curPos.lat}, ${curPos.lng}`;
-    toast('تم تحديد الموقع ✅');
-  }catch(e){ toast('تعذّر تحديد الموقع: ' + errMsg(e)); }
-};
-
-$('#btnApplyAll').onclick = () => {
-  if(!curPos){ toast('حدّد موقعك أولًا 📍'); return; }
-  if(!data.length){ toast('لا يوجد صفوف'); return; }
-  coords = data.map(() => ({lat: curPos.lat, lng: curPos.lng}));
-  render(); saveState();
-  toast(`تم تطبيق الإحداثيات على ${data.length} صف`);
-};
 
 $('#btnClearCoords').onclick = () => {
   coords = data.map(() => ({lat:'', lng:''}));
