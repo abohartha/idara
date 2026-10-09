@@ -4,15 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>إدارة</title>
-<meta name="description" content="تطبيق إدارة لتحويل النص إلى Excel مع الإحداثيات">
 <meta name="theme-color" content="#0d9488">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="إدارة">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mgrs@2.2.0/dist/mgrs.min.js"></script>
 <style>
 :root{
   --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
@@ -67,6 +66,7 @@ select:focus,input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(13,
 .btn.mini.del:hover{background:#ffe4e6;border-color:#fecdd3}
 .locbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#f0fdfa;
   border:1px dashed #99f6e4;border-radius:14px;padding:10px;margin-bottom:12px}
+.locbar input[type=text]{max-width:260px}
 .coords-pill{background:#fff;border:1px solid #ccfbf1;border-radius:999px;
   padding:6px 12px;font-size:.82rem;color:var(--brand2);direction:ltr;font-weight:600}
 .table-wrap{overflow:auto;max-height:56vh;border:1px solid var(--line);border-radius:14px}
@@ -139,6 +139,11 @@ td.actions{width:1%;white-space:nowrap}
       <button class="btn ghost" id="btnApplyAll">تطبيق على كل الصفوف</button>
       <button class="btn ghost" id="btnClearCoords">مسح الإحداثيات</button>
       <span class="coords-pill" id="curCoords">لا يوجد موقع محدد</span>
+    </div>
+    <div class="locbar">
+      <input type="text" id="mgrsInput" placeholder="مثال: 33XVG74594359" style="direction:ltr">
+      <button class="btn ghost" id="btnConvertMgrs">تحويل MGRS</button>
+      <span class="muted" style="font-size:.8rem">أدخل إحداثيات MGRS ثم اضغط تحويل لملء الحقول</span>
     </div>
     <div class="row" style="margin:0 0 10px">
       <label class="chk"><input type="checkbox" id="coordsOn" checked> أعمدة الإحداثيات</label>
@@ -402,9 +407,12 @@ function updateLink(tr, i){
   const c = coords[i] || {};
   const ok = c.lat !== '' && c.lng !== '' && c.lat != null && c.lng != null &&
              !isNaN(Number(c.lat)) && !isNaN(Number(c.lng));
-  cell.innerHTML = ok
-    ? `<a href="https://maps.google.com/?q=${c.lat},${c.lng}" target="_blank" rel="noopener">فتح</a>`
-    : '<span class="muted">—</span>';
+  if(ok){
+    const url = `https://www.google.com/maps?q=${c.lat},${c.lng}`;
+    cell.innerHTML = `<a href="${url}" target="_blank" rel="noopener">فتح</a>`;
+  } else {
+    cell.innerHTML = '<span class="muted">—</span>';
+  }
 }
 
 function getPos(){
@@ -425,6 +433,24 @@ function errMsg(e){
   if(e && e.code === 2) return 'الموقع غير متاح';
   if(e && e.code === 3) return 'انتهت المهلة';
   return (e && e.message) || 'خطأ غير معروف';
+}
+
+/* تحويل MGRS إلى Lat/Lng */
+function convertMgrs(){
+  const input = $('#mgrsInput').value.trim();
+  if(!input){ toast('أدخل إحداثيات MGRS أولًا'); return; }
+  try{
+    // mgrs.toPoint returns [lon, lat]
+    const point = mgrs.toPoint(input);
+    if(!point || point.length < 2) throw new Error('صيغة MGRS غير صحيحة');
+    const lng = Number(point[0].toFixed(6));
+    const lat = Number(point[1].toFixed(6));
+    curPos = {lat, lng};
+    $('#curCoords').textContent = `${lat}, ${lng}`;
+    toast('تم التحويل: ' + lat + ', ' + lng);
+  }catch(e){
+    toast('تعذّر تحويل MGRS: ' + (e.message || 'صيغة غير صحيحة'));
+  }
 }
 
 function numOrStr(v){
@@ -448,7 +474,7 @@ function getExportAOA(){
       const hasLng = c.lng !== '' && c.lng != null;
       row.push(hasLat ? numOrStr(c.lat) : '', hasLng ? numOrStr(c.lng) : '');
       if(linksOn){
-        row.push((hasLat && hasLng) ? `https://maps.google.com/?q=${c.lat},${c.lng}` : '');
+        row.push((hasLat && hasLng) ? `https://www.google.com/maps?q=${c.lat},${c.lng}` : '');
       }
     }
     return row;
@@ -533,6 +559,8 @@ $('#btnLoc').onclick = async () => {
   }catch(e){ toast('تعذّر تحديد الموقع: ' + errMsg(e)); }
 };
 
+$('#btnConvertMgrs').onclick = convertMgrs;
+
 $('#btnApplyAll').onclick = () => {
   if(!curPos){ toast('حدّد موقعك أولًا 📍'); return; }
   if(!data.length){ toast('لا يوجد صفوف'); return; }
@@ -574,7 +602,7 @@ $('#btnShare').onclick = async () => {
   }
 };
 
-/* تسجيل Service Worker */
+/* Service Worker */
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(()=>{});
