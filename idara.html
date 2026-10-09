@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ادارة</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+  --brand:#0d9488; --brand2:#0f766e; --accent:#4f46e5; --danger:#e11d48;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Segoe UI",Tahoma,system-ui,-apple-system,"Noto Kufi Arabic",sans-serif;
+  color:var(--ink); line-height:1.6; min-height:100vh; background:#eef2f7;
+  background-image:
+    radial-gradient(1200px 400px at 100% -10%, #d9f2ee 0%, transparent 60%),
+    radial-gradient(900px 350px at -10% 0%, #e0e7ff 0%, transparent 55%);
+  background-repeat:no-repeat;
+}
+.wrap{max-width:1060px;margin:0 auto;padding:0 16px}
+header.app-header{
+  background:linear-gradient(135deg,#0f766e,#0d9488 45%,#4f46e5);
+  color:#fff;padding:26px 0 34px;border-radius:0 0 28px 28px;
+  box-shadow:0 10px 30px rgba(15,23,42,.18);
+}
+header h1{margin:0 0 6px;font-size:clamp(1.05rem,3.4vw,1.55rem)}
+header p{margin:0;opacity:.92;font-size:.9rem}
+main{padding:18px 0 70px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;
+  padding:16px;box-shadow:0 4px 18px rgba(15,23,42,.06)}
+.card h2{margin:0 0 12px;font-size:1rem;color:var(--brand2)}
+textarea{width:100%;min-height:150px;resize:vertical;border:1px solid var(--line);
+  border-radius:14px;padding:12px;font:inherit;font-size:.95rem;background:#f8fafc;outline:none}
+textarea:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(13,148,136,.13)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+label{font-size:.88rem;color:#334155}
+select,input[type=text],input:not([type]){border:1px solid var(--line);border-radius:10px;
+  padding:8px 10px;font:inherit;font-size:.88rem;background:#fff;outline:none;max-width:220px}
+select:focus,input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(13,148,136,.13)}
+.chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.chk input{width:17px;height:17px;accent-color:var(--brand)}
+.btn{border:1px solid transparent;border-radius:12px;padding:10px 16px;font:inherit;
+  font-size:.9rem;font-weight:600;cursor:pointer;transition:.15s;display:inline-flex;
+  align-items:center;gap:6px}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--brand);color:#fff;box-shadow:0 6px 14px rgba(13,148,136,.28)}
+.btn.primary:hover{background:var(--brand2)}
+.btn.accent{background:var(--accent);color:#fff;box-shadow:0 6px 14px rgba(79,70,229,.28)}
+.btn.accent:hover{filter:brightness(.94)}
+.btn.ghost{background:#fff;border-color:var(--line);color:#334155}
+.btn.ghost:hover{background:#f1f5f9}
+.btn.mini{padding:5px 8px;font-size:.85rem;border-radius:9px;background:#f1f5f9;
+  border:1px solid var(--line);cursor:pointer;line-height:1}
+.btn.mini:hover{background:#e2e8f0}
+.btn.mini.del:hover{background:#ffe4e6;border-color:#fecdd3}
+.locbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#f0fdfa;
+  border:1px dashed #99f6e4;border-radius:14px;padding:10px;margin-bottom:12px}
+.coords-pill{background:#fff;border:1px solid #ccfbf1;border-radius:999px;
+  padding:6px 12px;font-size:.82rem;color:var(--brand2);direction:ltr;font-weight:600}
+.table-wrap{overflow:auto;max-height:56vh;border:1px solid var(--line);border-radius:14px}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:540px;font-size:.88rem}
+th,td{border-bottom:1px solid var(--line);padding:0;background:#fff;vertical-align:middle}
+th{position:sticky;top:0;z-index:2;background:#f8fafc}
+th input{font-weight:700;color:var(--brand2)}
+td input,th input{width:100%;border:0;background:transparent;padding:9px 10px;
+  font:inherit;outline:none;min-width:95px}
+td input:focus,th input:focus{background:#f0fdfa;box-shadow:inset 0 0 0 2px rgba(13,148,136,.35)}
+th.coord-h{background:#eef2ff;color:#4338ca;padding:9px 10px;font-size:.82rem;white-space:nowrap}
+td.coord-c input{direction:ltr;text-align:left;color:#4338ca;min-width:105px}
+td.linkcell{text-align:center;padding:0 8px;font-size:.82rem;white-space:nowrap}
+td.linkcell a{color:var(--accent);font-weight:600;text-decoration:none}
+td.linkcell a:hover{text-decoration:underline}
+td.actions{width:1%;white-space:nowrap}
+.act-wrap{display:flex;gap:4px;padding:4px 6px}
+.muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.grid label{display:flex;flex-direction:column;gap:6px}
+.grid input,.grid select{max-width:none;width:100%}
+#stat{font-size:.82rem;color:var(--muted);margin-inline-start:auto}
+#toast{position:fixed;bottom:22px;left:50%;transform:translate(-50%,20px);
+  background:#0f172a;color:#fff;padding:11px 20px;border-radius:12px;font-size:.88rem;
+  opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+.empty{padding:26px;text-align:center;color:var(--muted);font-size:.9rem}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="wrap">
+    <h1>📋 ادارة</h1>
+    <p>تطبيق لتحويل النص إلى Excel مع الإحداثيات — مع الحفظ والمشاركة.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="card">
+    <h2>1) الكتابة أو اللصق</h2>
+    <textarea id="src" placeholder="مثال:&#10;الاسم,المدينة,الملاحظة&#10;أحمد,دمشق,زيارة عميل&#10;سارة,حلب,تسليم طلب"></textarea>
+    <div class="row">
+      <label>الفاصل:
+        <select id="delim">
+          <option value="auto">تلقائي</option>
+          <option value=",">فاصلة  ,</option>
+          <option value=";">فاصلة منقوطة  ;</option>
+          <option value="&#9;">Tab</option>
+          <option value="|">|</option>
+          <option value=" ">مسافة</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="hasHeader" checked> السطر الأول عناوين</label>
+      <button class="btn primary" id="btnParse">تحويل إلى جدول</button>
+      <button class="btn ghost" id="btnSample">مثال</button>
+      <button class="btn ghost" id="btnClear">مسح</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2) الجدول والإحداثيات</h2>
+    <div class="locbar">
+      <button class="btn accent" id="btnLoc">📍 تحديد موقعي الحالي</button>
+      <button class="btn ghost" id="btnApplyAll">تطبيق على كل الصفوف</button>
+      <button class="btn ghost" id="btnClearCoords">مسح الإحداثيات</button>
+      <span class="coords-pill" id="curCoords">لا يوجد موقع محدد</span>
+    </div>
+    <div class="row" style="margin:0 0 10px">
+      <label class="chk"><input type="checkbox" id="coordsOn" checked> أعمدة الإحداثيات</label>
+      <label class="chk"><input type="checkbox" id="linksOn" checked> رابط خريطة Google</label>
+    </div>
+    <div class="table-wrap">
+      <table id="tbl"></table>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="btnAddRow">+ إضافة صف</button>
+      <span id="stat"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3) الحفظ والمشاركة</h2>
+    <div class="grid">
+      <label>اسم الملف
+        <input type="text" id="fname" value="بياناتي">
+      </label>
+      <label>اسم الورقة
+        <input type="text" id="sname" value="Sheet1">
+      </label>
+      <label>صيغة الملف
+        <select id="fmt">
+          <option value="xlsx">Excel (.xlsx)</option>
+          <option value="csv">CSV (.csv)</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="btnSave">💾 حفظ / تنزيل</button>
+      <button class="btn accent" id="btnShare">📤 مشاركة</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let toastTimer;
+function toast(msg){
+  let t = document.getElementById('toast');
+  if(!t){ t = document.createElement('div'); t.id='toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+let cols   = [];
+let data   = [];
+let coords = [];
+let curPos = null;
+let coordsOn = true, linksOn = true;
+
+function splitLine(line, d){
+  const out = []; let cur = '', q = false;
+  for(let i=0;i<line.length;i++){
+    const ch = line[i];
+    if(q){
+      if(ch === '"'){
+        if(line[i+1] === '"'){ cur += '"'; i++; } else q = false;
+      } else cur += ch;
+    } else {
+      if(ch === '"') q = true;
+      else if(ch === d){ out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+  }
+  out.push(cur);
+  return out.map(s => s.trim());
+}
+
+function detectDelim(text){
+  const lines = text.split(/\r?\n/).filter(l => l.trim()).slice(0, 10);
+  if(!lines.length) return null;
+  for(const c of ['\t', ',', ';', '|']){
+    const counts = lines.map(l => splitLine(l, c).length);
+    if(counts[0] > 1 && counts.every(n => n === counts[0])) return c;
+  }
+  return null;
+}
+
+function doParse(){
+  const raw = $('#src').value.replace(/\r/g, '');
+  if(!raw.trim()){ toast('اكتب شيئًا أولًا ✍️'); return; }
+
+  const lines = raw.split('\n').filter(l => l.trim() !== '');
+  let d = $('#delim').value;
+  if(d === 'auto') d = detectDelim(raw);
+
+  let rows;
+  if(d === ' ')        rows = lines.map(l => l.trim().split(/\s+/));
+  else if(d === null)  rows = lines.map(l => [l.trim()]);
+  else                 rows = lines.map(l => splitLine(l, d));
+
+  rows = rows.filter(r => r.some(c => c !== ''));
+  if(!rows.length){ toast('لا توجد بيانات صالحة'); return; }
+
+  const width = Math.max(...rows.map(r => r.length));
+  const pad = r => { const a = r.slice(); while(a.length < width) a.push(''); return a; };
+
+  if($('#hasHeader').checked && rows.length > 1){
+    cols = rows[0].slice();
+    while(cols.length < width) cols.push('عمود ' + (cols.length + 1));
+    data = rows.slice(1).map(pad);
+  } else {
+    cols = Array.from({length: width}, (_, i) => 'عمود ' + (i + 1));
+    data = rows.map(pad);
+  }
+
+  coords = data.map(() => ({lat:'', lng:''}));
+  render();
+  toast(`تم إنشاء الجدول: ${data.length} صف × ${cols.length} عمود`);
+}
+
+function render(){
+  const table = $('#tbl');
+  table.innerHTML = '';
+
+  if(!cols.length){
+    table.innerHTML = '<tbody><tr><td><div class="empty">لا توجد بيانات بعد — اكتب نصًا ثم اضغط «تحويل إلى جدول».</div></td></tr></tbody>';
+    $('#stat').textContent = '';
+    return;
+  }
+
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+
+  cols.forEach((c, i) => {
+    const th = document.createElement('th');
+    const inp = document.createElement('input');
+    inp.value = c;
+    inp.oninput = () => { cols[i] = inp.value; };
+    th.appendChild(inp);
+    trh.appendChild(th);
+  });
+
+  if(coordsOn){
+    ['خط العرض','خط الطول'].forEach(t => {
+      const th = document.createElement('th');
+      th.className = 'coord-h'; th.textContent = t;
+      trh.appendChild(th);
+    });
+    if(linksOn){
+      const th = document.createElement('th');
+      th.className = 'coord-h'; th.textContent = 'الرابط';
+      trh.appendChild(th);
+    }
+  }
+  trh.appendChild(document.createElement('th'));
+  thead.appendChild(trh);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  data.forEach((row, i) => {
+    const tr = document.createElement('tr');
+
+    cols.forEach((_, j) => {
+      const td = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.value = row[j] ?? '';
+      inp.oninput = () => { data[i][j] = inp.value; };
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+
+    if(coordsOn){
+      const c = coords[i] || (coords[i] = {lat:'', lng:''});
+
+      const tdLat = document.createElement('td');
+      tdLat.className = 'coord-c';
+      const iLat = document.createElement('input');
+      iLat.dir = 'ltr'; iLat.placeholder = 'lat'; iLat.inputMode = 'decimal';
+      iLat.value = c.lat ?? '';
+      iLat.oninput = () => { c.lat = iLat.value.trim(); updateLink(tr, i); };
+      tdLat.appendChild(iLat); tr.appendChild(tdLat);
+
+      const tdLng = document.createElement('td');
+      tdLng.className = 'coord-c';
+      const iLng = document.createElement('input');
+      iLng.dir = 'ltr'; iLng.placeholder = 'lng'; iLng.inputMode = 'decimal';
+      iLng.value = c.lng ?? '';
+      iLng.oninput = () => { c.lng = iLng.value.trim(); updateLink(tr, i); };
+      tdLng.appendChild(iLng); tr.appendChild(tdLng);
+
+      if(linksOn){
+        const tdL = document.createElement('td');
+        tdL.className = 'linkcell';
+        tr.appendChild(tdL);
+      }
+    }
+
+    const tdA = document.createElement('td');
+    tdA.className = 'actions';
+    const wrap = document.createElement('div');
+    wrap.className = 'act-wrap';
+
+    const bLoc = document.createElement('button');
+    bLoc.className = 'btn mini'; bLoc.textContent = '📍'; bLoc.title = 'تحديد موقع هذا الصف';
+    bLoc.onclick = async () => {
+      try{
+        toast('جارٍ تحديد الموقع...');
+        const p = await getPos();
+        coords[i] = {lat: p.lat, lng: p.lng};
+        render(); toast('تم إضافة الإحداثيات للصف ' + (i + 1));
+      }catch(e){ toast('تعذّر تحديد الموقع: ' + errMsg(e)); }
+    };
+
+    const bDel = document.createElement('button');
+    bDel.className = 'btn mini del'; bDel.textContent = '🗑'; bDel.title = 'حذف الصف';
+    bDel.onclick = () => {
+      data.splice(i, 1); coords.splice(i, 1);
+      render(); toast('تم حذف الصف');
+    };
+
+    wrap.append(bLoc, bDel);
+    tdA.appendChild(wrap);
+    tr.appendChild(tdA);
+
+    tbody.appendChild(tr);
+    if(linksOn) updateLink(tr, i);
+  });
+
+  table.appendChild(tbody);
+
+  const filled = coords.filter(c => c && c.lat !== '' && c.lng !== '').length;
+  $('#stat').textContent = `${data.length} صف · ${cols.length} عمود · ${filled} إحداثية`;
+}
+
+function updateLink(tr, i){
+  const cell = tr.querySelector('.linkcell');
+  if(!cell) return;
+  const c = coords[i] || {};
+  const ok = c.lat !== '' && c.lng !== '' && c.lat != null && c.lng != null &&
+             !isNaN(Number(c.lat)) && !isNaN(Number(c.lng));
+  cell.innerHTML = ok
+    ? `<a href="https://maps.google.com/?q=${c.lat},${c.lng}" target="_blank" rel="noopener">فتح</a>`
+    : '<span class="muted">—</span>';
+}
+
+function getPos(){
+  return new Promise((res, rej) => {
+    if(!navigator.geolocation) return rej(new Error('الجهاز لا يدعم تحديد الموقع'));
+    navigator.geolocation.getCurrentPosition(
+      p => res({
+        lat: Number(p.coords.latitude.toFixed(6)),
+        lng: Number(p.coords.longitude.toFixed(6))
+      }),
+      e => rej(e),
+      {enableHighAccuracy:true, timeout:15000, maximumAge:0}
+    );
+  });
+}
+function errMsg(e){
+  if(e && e.code === 1) return 'تم رفض الإذن';
+  if(e && e.code === 2) return 'الموقع غير متاح';
+  if(e && e.code === 3) return 'انتهت المهلة';
+  return (e && e.message) || 'خطأ غير معروف';
+}
+
+function numOrStr(v){
+  const s = String(v ?? '').trim();
+  return (s !== '' && !isNaN(Number(s))) ? Number(s) : s;
+}
+
+function getExportAOA(){
+  const head = cols.slice();
+  if(coordsOn){
+    head.push('خط العرض', 'خط الطول');
+    if(linksOn) head.push('رابط الخريطة');
+  }
+
+  const body = data.map((r, i) => {
+    const row = [];
+    for(let j = 0; j < cols.length; j++) row.push(r[j] ?? '');
+    if(coordsOn){
+      const c = coords[i] || {};
+      const hasLat = c.lat !== '' && c.lat != null;
+      const hasLng = c.lng !== '' && c.lng != null;
+      row.push(hasLat ? numOrStr(c.lat) : '', hasLng ? numOrStr(c.lng) : '');
+      if(linksOn){
+        row.push((hasLat && hasLng) ? `https://maps.google.com/?q=${c.lat},${c.lng}` : '');
+      }
+    }
+    return row;
+  });
+
+  return [head, ...body];
+}
+
+function toCSV(aoa){
+  return aoa.map(r => r.map(c => {
+    const s = c == null ? '' : String(c);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\r\n');
+}
+
+async function buildFile(){
+  const aoa  = getExportAOA();
+  const base = ($('#fname').value || 'بيانات').trim().replace(/[\\/:*?"<>|]/g, '_');
+  const fmt  = $('#fmt').value;
+
+  if(fmt === 'csv' || typeof XLSX === 'undefined'){
+    const blob = new Blob(['\uFEFF' + toCSV(aoa)], {type:'text/csv;charset=utf-8'});
+    return {blob, name: base + '.csv'};
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = aoa[0].map((_, i) => ({
+    wch: Math.min(42, Math.max(12, ...aoa.map(r => String(r[i] ?? '').length + 4)))
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, ($('#sname').value || 'Sheet1').slice(0, 31));
+  const out  = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  return {blob, name: base + '.xlsx'};
+}
+
+function download(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+
+$('#btnParse').onclick = doParse;
+
+$('#btnSample').onclick = () => {
+  $('#src').value =
+`الاسم,المدينة,الملاحظة
+أحمد علي,دمشق,زيارة عميل
+سارة محمد,حلب,تسليم طلب
+خالد يوسف,حمص,متابعة عقد
+ليلى حسن,اللاذقية,اجتماع`;
+  doParse();
+};
+
+$('#btnClear').onclick = () => {
+  $('#src').value = '';
+  cols = []; data = []; coords = []; curPos = null;
+  $('#curCoords').textContent = 'لا يوجد موقع محدد';
+  render();
+};
+
+$('#btnAddRow').onclick = () => {
+  if(!cols.length){ toast('أنشئ الجدول أولًا'); return; }
+  data.push(new Array(cols.length).fill(''));
+  coords.push({lat:'', lng:''});
+  render();
+};
+
+$('#coordsOn').onchange = e => { coordsOn = e.target.checked; render(); };
+$('#linksOn').onchange  = e => { linksOn  = e.target.checked; render(); };
+
+$('#btnLoc').onclick = async () => {
+  try{
+    toast('جارٍ تحديد موقعك...');
+    curPos = await getPos();
+    $('#curCoords').textContent = `${curPos.lat}, ${curPos.lng}`;
+    toast('تم تحديد الموقع ✅');
+  }catch(e){ toast('تعذّر تحديد الموقع: ' + errMsg(e)); }
+};
+
+$('#btnApplyAll').onclick = () => {
+  if(!curPos){ toast('حدّد موقعك أولًا 📍'); return; }
+  if(!data.length){ toast('لا يوجد صفوف'); return; }
+  coords = data.map(() => ({lat: curPos.lat, lng: curPos.lng}));
+  render();
+  toast(`تم تطبيق الإحداثيات على ${data.length} صف`);
+};
+
+$('#btnClearCoords').onclick = () => {
+  coords = data.map(() => ({lat:'', lng:''}));
+  render(); toast('تم مسح الإحداثيات');
+};
+
+$('#btnSave').onclick = async () => {
+  if(!data.length){ toast('لا توجد بيانات للحفظ'); return; }
+  try{
+    const {blob, name} = await buildFile();
+    download(blob, name);
+    toast('تم حفظ الملف: ' + name);
+  }catch(e){ toast('خطأ في الحفظ: ' + e.message); }
+};
+
+$('#btnShare').onclick = async () => {
+  if(!data.length){ toast('لا توجد بيانات للمشاركة'); return; }
+  try{
+    const {blob, name} = await buildFile();
+    const file = new File([blob], name, {type: blob.type || 'application/octet-stream'});
+
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title: name, text: 'ملف البيانات مع الإحداثيات'});
+      toast('تمت المشاركة ✅');
+    } else {
+      download(blob, name);
+      toast('المشاركة المباشرة غير مدعومة — تم تنزيل الملف بدلًا منها');
+    }
+  }catch(e){
+    if(e && e.name === 'AbortError') return;
+    toast('تعذّرت المشاركة: ' + e.message);
+  }
+};
+
+render();
+</script>
+</body>
+</html>
