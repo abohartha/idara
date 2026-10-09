@@ -51,7 +51,7 @@ select:focus,input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(13,
 .chk input{width:17px;height:17px;accent-color:var(--brand)}
 .btn{border:1px solid transparent;border-radius:12px;padding:10px 16px;font:inherit;
   font-size:.9rem;font-weight:600;cursor:pointer;transition:.15s;display:inline-flex;
-  align-items:center;gap:6px}
+  align-items:center;gap:6px;text-decoration:none;color:inherit}
 .btn:active{transform:translateY(1px)}
 .btn.primary{background:var(--brand);color:#fff;box-shadow:0 6px 14px rgba(13,148,136,.28)}
 .btn.primary:hover{background:var(--brand2)}
@@ -135,17 +135,15 @@ td.actions{width:1%;white-space:nowrap}
   <section class="card">
     <h2>2) الجدول والإحداثيات</h2>
 
-    <!-- إدخال يدوي للإحداثيات -->
     <div class="locbar manual">
       <span style="font-weight:600;color:#4338ca">✍️ إدخال يدوي:</span>
       <input type="text" id="manualLat" placeholder="خط العرض" inputmode="decimal">
       <input type="text" id="manualLng" placeholder="خط الطول" inputmode="decimal">
       <button class="btn ghost" id="btnManualSet">تعيين للموقع الحالي</button>
       <button class="btn ghost" id="btnManualAll">تطبيق على كل الصفوف</button>
-      <a class="btn ghost" id="btnManualMap" href="#" target="_blank" rel="noopener">🗺 فتح الخريطة</a>
+      <button class="btn ghost" id="btnManualMap">🗺 فتح الخريطة</button>
     </div>
 
-    <!-- تحديد الموقع التلقائي -->
     <div class="locbar">
       <button class="btn accent" id="btnLoc">📍 تحديد موقعي الحالي (GPS)</button>
       <button class="btn ghost" id="btnApplyAll">تطبيق على كل الصفوف</button>
@@ -207,7 +205,6 @@ let coords = [];
 let curPos = null;
 let coordsOn = true, linksOn = true;
 
-/* حفظ تلقائي */
 const LS_KEY = 'idara_state_v2';
 function saveState(){
   try{
@@ -455,25 +452,6 @@ function readManual(){
   return {lat: nLat, lng: nLng};
 }
 
-function updateManualMapLink(){
-  const lat = $('#manualLat').value.trim();
-  const lng = $('#manualLng').value.trim();
-  const a = $('#btnManualMap');
-  if(lat !== '' && lng !== '' && !isNaN(Number(lat)) && !isNaN(Number(lng))){
-    a.href = `https://www.google.com/maps?q=${lat},${lng}`;
-    a.style.opacity = '1';
-    a.style.pointerEvents = 'auto';
-  } else {
-    a.href = '#';
-    a.style.opacity = '.55';
-    a.style.pointerEvents = 'none';
-  }
-}
-$('#manualLat').addEventListener('input', updateManualMapLink);
-$('#manualLng').addEventListener('input', updateManualMapLink);
-updateManualMapLink();
-
-/* تعيين للموقع الحالي */
 $('#btnManualSet').onclick = () => {
   const p = readManual();
   if(!p) return;
@@ -482,7 +460,6 @@ $('#btnManualSet').onclick = () => {
   toast('تم تعيين الموقع الحالي يدويًا ✅');
 };
 
-/* تطبيق يدوي على كل الصفوف */
 $('#btnManualAll').onclick = () => {
   const p = readManual();
   if(!p) return;
@@ -492,6 +469,19 @@ $('#btnManualAll').onclick = () => {
   $('#curCoords').textContent = `${p.lat}, ${p.lng}`;
   render(); saveState();
   toast(`تم تطبيق الإحداثيات على ${data.length} صف`);
+};
+
+/* فتح خريطة Google من الإحداثيات اليدوية */
+$('#btnManualMap').onclick = () => {
+  const p = readManual();
+  if(!p) return;
+  const url = `https://www.google.com/maps?q=${p.lat},${p.lng}`;
+  const w = window.open(url, '_blank');
+  if(!w || w.closed || typeof w.closed === 'undefined'){
+    location.href = url;
+  } else {
+    toast('تم فتح الخريطة 🗺');
+  }
 };
 
 function numOrStr(v){
